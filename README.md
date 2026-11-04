@@ -1,24 +1,59 @@
-# 📦 Sistema de Controle de Estoque e Vendas (FastAPI)
+# Sistema de Controle de Estoque e Vendas
 
-API RESTful moderna e segura desenvolvida com **FastAPI** e **SQLAlchemy**, projetada para a gestão eficiente de inventário, registo de produtos, transações de vendas e controlo de histórico.
+Projeto de uma API para controle de produtos, estoque e vendas, desenvolvido com Python.
 
-## 🚀 Tecnologias Utilizadas
-- **Python** (Linguagem principal)
-- **FastAPI** (Framework web de alta performance)
-- **SQLAlchemy & SQLite** (ORM e Base de dados local)
-- **Pydantic** (Validação de dados rigorosa)
-- **JWT & Passlib** (Autenticação segura baseada em tokens e hash de palavras-passe)
+## Funcionalidades
 
-## ✨ Funcionalidades Principais
-- **Autenticação Dupla**: Suporte a OAuth2 padrão (botão *Authorize* do Swagger) e um login simplificado via JSON (`/login-json`) para testes rápidos.
-- **Utilizador Automático**: Criação automática de um utilizador de teste (`Loja` / `1234`) no arranque da aplicação para facilitar os primeiros testes.
-- **CRUD de Produtos**: Gestão completa de inventário com validação de códigos de barras, preços monetários precisos (`Decimal`) e categorias.
-- **Registo de Vendas Inteligente**: Validação atómica de stock em tempo real (impede vendas superiores à quantidade disponível) e cálculo automático do valor total.
-- **Histórico de Transações**: Consulta de vendas passadas ordenada por data de forma imutável.
+- Cadastro, consulta, atualização e exclusão de produtos.
+- Controle de quantidade em estoque.
+- Registro de vendas.
+- Cálculo automático do valor das vendas.
+- Histórico de vendas.
+- Autenticação de usuários.
 
-## ⚙️ Como Executar o Projeto Localmente
+## Tecnologias
 
-1. **Clone o repositório:**
-   ```bash
-   git clone [https://github.com/ryan-b140/sistema-estoque-vendas.git](https://github.com/ryan-b140/sistema-estoque-vendas.git)
-   cd sistema-estoque-vendas
+- Python
+- FastAPI
+- SQLAlchemy
+- SQLite
+- Pydantic
+- JWT
+
+## Como executar
+
+**1. Clone o repositório**
+
+```bash
+git clone https://github.com/ryan-b140/sistema-estoque-vendas.git
+```
+
+**2. Entre na pasta**
+
+```bash
+cd sistema-estoque-vendas
+```
+
+**3. Instale as dependências**
+
+```bash
+pip install fastapi "uvicorn[standard]" sqlalchemy "python-jose[cryptography]" passlib python-multipart
+```
+
+**4. Inicie o servidor**
+
+```bash
+uvicorn main:app --reload
+```
+
+## Documentação da API
+
+Com o servidor iniciado, acesse:
+
+http://127.0.0.1:8000/docs
+
+A documentação permite testar as funcionalidades da API.
+
+## Objetivo
+
+Projeto desenvolvido para praticar Python, desenvolvimento de APIs, banco de dados e lógica de programação.
