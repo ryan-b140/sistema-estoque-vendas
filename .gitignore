@@ -1,0 +1,6 @@
+# Base de dados local
+estoque_vendas.db
+
+# Cache do Python
+__pycache__/
+*.pyc
