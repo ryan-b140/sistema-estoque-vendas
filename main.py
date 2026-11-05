@@ -2,13 +2,14 @@ import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import List
+from typing import Annotated, List
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError
 from passlib.context import CryptContext
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, field_validator
 from sqlalchemy import (
     Column, DateTime, ForeignKey, Integer, Numeric, String, create_engine,
 )
@@ -18,7 +19,10 @@ from sqlalchemy.orm import Session, declarative_base, relationship, sessionmaker
 # 1. CONFIGURAÇÕES E SEGURANÇA
 # ==========================================
 # Em produção defina SECRET_KEY como variável de ambiente.
+AMBIENTE = os.getenv("AMBIENTE", "desenvolvimento").lower()
 SECRET_KEY = os.getenv("SECRET_KEY", "chave-de-desenvolvimento-troque-em-producao")
+if AMBIENTE == "producao" and SECRET_KEY == "chave-de-desenvolvimento-troque-em-producao":
+    raise RuntimeError("Defina a variável de ambiente SECRET_KEY antes de rodar em produção.")
 ALGORITHM = "HS256"
 TOKEN_EXPIRA_MINUTOS = int(os.getenv("TOKEN_EXPIRA_MINUTOS", "60"))
 
@@ -28,7 +32,7 @@ CRIAR_USUARIO_PADRAO = os.getenv("CRIAR_USUARIO_PADRAO", "true").lower() == "tru
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./estoque_vendas.db"
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./estoque_vendas.db")
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -61,7 +65,7 @@ class VendaDB(Base):
     produto_id = Column(Integer, ForeignKey("produtos.id"), nullable=False)
     quantidade_vendida = Column(Integer, nullable=False)
     valor_total = Column(Numeric(10, 2), nullable=False)
-    data_venda = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    data_venda = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     produto = relationship("ProdutoDB")
 
@@ -76,6 +80,11 @@ Base.metadata.create_all(bind=engine)
 # ==========================================
 # 3. ESQUEMAS (PYDANTIC)
 # ==========================================
+# Entrada: Decimal com no máximo 2 casas. Saída: número JSON (float) só na serialização.
+DinheiroEntrada = Annotated[Decimal, Field(ge=0, max_digits=10, decimal_places=2)]
+DinheiroSaida = Annotated[Decimal, PlainSerializer(float, return_type=float, when_used="json")]
+
+
 class LoginJSON(BaseModel):
     username: str
     password: str
@@ -90,7 +99,7 @@ class ProdutoCreate(BaseModel):
     codigo_barras: str = Field(min_length=1)
     nome: str = Field(min_length=1)
     descricao: str = ""
-    preco: float = Field(ge=0)
+    preco: DinheiroEntrada
     quantidade: int = Field(ge=0)
     categoria: str = ""
 
@@ -98,13 +107,14 @@ class ProdutoCreate(BaseModel):
 class ProdutoUpdate(BaseModel):
     nome: str | None = Field(default=None, min_length=1)
     descricao: str | None = None
-    preco: float | None = Field(default=None, ge=0)
+    preco: DinheiroEntrada | None = None
     quantidade: int | None = Field(default=None, ge=0)
     categoria: str | None = None
 
 
 class ProdutoResponse(ProdutoCreate):
     id: int
+    preco: DinheiroSaida
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -118,9 +128,15 @@ class VendaResponse(BaseModel):
     produto_id: int
     produto_nome: str
     quantidade_vendida: int
-    valor_total: float
+    valor_total: DinheiroSaida
     data_venda: datetime
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("data_venda")
+    @classmethod
+    def _assumir_utc(cls, v: datetime) -> datetime:
+        # O SQLite devolve datas sem fuso; elas foram gravadas em UTC.
+        return v.replace(tzinfo=timezone.utc) if v.tzinfo is None else v
 
 
 # ==========================================
@@ -170,7 +186,7 @@ def obter_usuario_atual(token: str = Depends(oauth2_scheme), db: Session = Depen
         username = payload.get("sub")
         if username is None:
             raise erro
-    except JWTError:
+    except InvalidTokenError:
         raise erro
 
     usuario = db.query(UsuarioDB).filter(UsuarioDB.username == username).first()
@@ -214,7 +230,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 @app.post("/login-json", response_model=Token, tags=["Autenticação"])
 def login_json(dados: LoginJSON, db: Session = Depends(get_db)):
-    """Login simples via JSON: {"username": "Ryan", "password": "1234"}."""
+    """Login simples via JSON: {"username": "Loja", "password": "1234"}."""
     return autenticar(db, dados.username, dados.password)
 
 
@@ -240,7 +256,7 @@ def listar_produtos(
     _: UsuarioDB = Depends(obter_usuario_atual),
     db: Session = Depends(get_db),
 ):
-    return db.query(ProdutoDB).offset(skip).limit(limit).all()
+    return db.query(ProdutoDB).order_by(ProdutoDB.id).offset(skip).limit(limit).all()
 
 
 @app.get("/produtos/{produto_id}", response_model=ProdutoResponse, tags=["Produtos"])
@@ -262,7 +278,7 @@ def atualizar_produto(
     if not produto:
         raise HTTPException(status_code=404, detail="Produto não encontrado.")
 
-    for campo, valor in dados.model_dump(exclude_unset=True).items():
+    for campo, valor in dados.model_dump(exclude_unset=True, exclude_none=True).items():
         setattr(produto, campo, valor)
     db.commit()
     db.refresh(produto)
@@ -321,4 +337,4 @@ def historico_vendas(
     _: UsuarioDB = Depends(obter_usuario_atual),
     db: Session = Depends(get_db),
 ):
-    return db.query(VendaDB).order_by(VendaDB.data_venda.desc()).offset(skip).limit(limit).all()
+    return db.query(VendaDB).order_by(VendaDB.data_venda.desc(), VendaDB.id.desc()).offset(skip).limit(limit).all()

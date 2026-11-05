@@ -1,6 +1,13 @@
 # Base de dados local
 estoque_vendas.db
+*.db
 
 # Cache do Python
 __pycache__/
 *.pyc
+.pytest_cache/
+
+# Ambientes e segredos
+.venv/
+venv/
+.env

@@ -5,20 +5,21 @@ Projeto de uma API para controle de produtos, estoque e vendas, desenvolvido com
 ## Funcionalidades
 
 - Cadastro, consulta, atualização e exclusão de produtos.
-- Controle de quantidade em estoque.
+- Controle de quantidade em estoque (a baixa na venda é atômica, sem vender além do estoque).
 - Registro de vendas.
-- Cálculo automático do valor das vendas.
+- Cálculo automático do valor das vendas, preservado no histórico mesmo se o preço mudar depois.
 - Histórico de vendas.
-- Autenticação de usuários.
+- Autenticação de usuários com JWT.
 
 ## Tecnologias
 
-- Python
+- Python 3.10+
 - FastAPI
 - SQLAlchemy
 - SQLite
 - Pydantic
-- JWT
+- JWT (PyJWT)
+- pytest
 
 ## Como executar
 
@@ -34,10 +35,12 @@ git clone https://github.com/ryan-b140/sistema-estoque-vendas.git
 cd sistema-estoque-vendas
 ```
 
-**3. Instale as dependências**
+**3. Crie o ambiente virtual e instale as dependências**
 
 ```bash
-pip install fastapi "uvicorn[standard]" sqlalchemy "python-jose[cryptography]" passlib python-multipart
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
 **4. Inicie o servidor**
@@ -53,6 +56,21 @@ Com o servidor iniciado, acesse:
 http://127.0.0.1:8000/docs
 
 A documentação permite testar as funcionalidades da API.
+
+Um usuário de desenvolvimento é criado automaticamente: **Loja / 1234**.
+Para desativar, defina `CRIAR_USUARIO_PADRAO=false`.
+
+## Testes
+
+```bash
+pytest -v
+```
+
+## Variáveis de ambiente (opcionais)
+
+- `SECRET_KEY`: chave do JWT (obrigatória se `AMBIENTE=producao`)
+- `TOKEN_EXPIRA_MINUTOS`: padrão 60
+- `DATABASE_URL`: padrão `sqlite:///./estoque_vendas.db`
 
 ## Objetivo
 
